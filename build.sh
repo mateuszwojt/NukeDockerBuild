@@ -17,8 +17,12 @@ for arg in "${@:3}"; do
     esac
 done
 
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Use proper Windows path format
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -W)"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 
 if $USE_PODMAN; then
     command -v podman &> /dev/null || { echo "Podman not installed. Please install that first."; exit 1; }
@@ -32,7 +36,7 @@ mkdir -p build
 if $USE_PODMAN; then
     podman run \
         -v "${SCRIPT_DIR}:/nukedockerbuild" \
-        -v ${SCRIPT_DIR}/build:/build \
+        -v "${SCRIPT_DIR}/build:/build" \
         --rm \
         --cap-add=sys_admin,mknod \
         --device=/dev/fuse \
@@ -41,26 +45,38 @@ if $USE_PODMAN; then
         bash -c "/nukedockerbuild/scripts/build.sh ${NUKEVERSION} ${OPERATING_SYSTEM} --podman"
 
     if ! $SKIP_LOAD; then
-        podman load -i ${SCRIPT_DIR}/build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
-        rm -rf /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
-    fi
-
-else
-    docker run \
-        -v "${SCRIPT_DIR}:/nukedockerbuild" \
-        -v ${SCRIPT_DIR}/build:/build \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        --rm \
-        docker.io/docker:dind \
-        sh -c "apk add --no-cache bash && \
-        /nukedockerbuild/scripts/build.sh ${NUKEVERSION} ${OPERATING_SYSTEM}"
-
-    if ! $SKIP_LOAD; then
-        docker load -i ${SCRIPT_DIR}/build/nukedockerbuild:${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
+        docker load -i "${SCRIPT_DIR}/build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz"
+        
         docker run \
             -v "${SCRIPT_DIR}/build:/build" \
             --rm \
             docker.io/docker:dind \
-            sh -c "rm -rf /build/nukedockerbuild:${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz"
+            sh -c "rm -rf /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz"
+    fi
+
+else
+    # Ensure no leftover container exists from a crash
+    docker rm -f nuke_builder_active 2>/dev/null || true
+
+    docker run \
+        --name nuke_builder_active \
+        -v "${SCRIPT_DIR}:/nukedockerbuild" \
+        -v "${SCRIPT_DIR}/build:/build" \
+        -v //var/run/docker.sock:/var/run/docker.sock \
+        --rm \
+        --network host \
+        docker.io/docker:dind \
+        sh -c "apk add --no-cache bash curl ca-certificates && \
+        /nukedockerbuild/scripts/build.sh ${NUKEVERSION} ${OPERATING_SYSTEM}"
+
+    if ! $SKIP_LOAD; then
+        # Ensure filenames use dashes, not colons
+        docker load -i "${SCRIPT_DIR}/build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz"
+        
+        docker run \
+            -v "${SCRIPT_DIR}/build:/build" \
+            --rm \
+            docker.io/docker:dind \
+            sh -c "rm -rf /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz"
     fi
 fi

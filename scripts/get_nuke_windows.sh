@@ -25,7 +25,7 @@ mkdir -p ${target_folder}
 
 echo "Download and extract Nuke in temp folder"
 mkdir -p ${nuke_temp_files}
-curl -o ${nuke_temp_files}/${filename} ${url}
+curl -k -o ${nuke_temp_files}/${filename} ${url}
 unzip ${nuke_temp_files}/${filename} -d ${nuke_temp_files}
 
 echo "Remove compressed Nuke"

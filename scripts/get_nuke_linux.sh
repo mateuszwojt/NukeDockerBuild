@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <path_to_dockerfile> <target_folder>"
     exit 1
@@ -23,7 +25,7 @@ nuke_temp_files=/tmp/nuke_temp_files
 
 echo "Download and extract Nuke in temp folder"
 mkdir ${nuke_temp_files}
-curl -o ${nuke_temp_files}/${filename} ${url}
+curl -k -o ${nuke_temp_files}/${filename} ${url}
 tar zxvf ${nuke_temp_files}/${filename} -C ${nuke_temp_files}
 
 echo "Remove compressed Nuke"

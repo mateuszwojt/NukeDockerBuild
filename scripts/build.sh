@@ -68,18 +68,34 @@ fi
 
 if $USE_PODMAN; then
     podman build \
-        -t nukedockerbuild:${NUKEVERSION}-${OPERATING_SYSTEM} \
+        -t nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM} \
         --build-arg NUKE_SOURCE_FILES=${SOURCES_DIR} \
         .
 
-    podman save nukedockerbuild:${NUKEVERSION}-${OPERATING_SYSTEM} | gzip > /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
+    podman save nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM} | gzip > /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
 else
-    docker buildx build \
-        -t nukedockerbuild:${NUKEVERSION}-${OPERATING_SYSTEM} \
+    # Explicit pull
+    if [ "$OPERATING_SYSTEM" == "linux" ]; then
+        docker pull rockylinux:8
+    else
+        docker pull debian:bookworm
+    fi
+
+    echo "----------------------------------------------------"
+    echo "Building ${OPERATING_SYSTEM} image..."
+    echo "Network: Inheriting from 'nuke_builder_active'"
+    echo "----------------------------------------------------"
+
+    # Run Build
+    # DOCKER_BUILDKIT=0 is required for 'container:' network mode.
+    DOCKER_BUILDKIT=0 docker build \
+        --network container:nuke_builder_active \
+        -t nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM} \
         --build-arg NUKE_SOURCE_FILES=${SOURCES_DIR} \
         .
 
-    docker save nukedockerbuild:${NUKEVERSION}-${OPERATING_SYSTEM} | gzip > /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
-    chmod 777 /build/nukedockerbuild:${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
+    # Save Output
+    docker save nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM} | gzip > /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
+    chmod 777 /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
 fi
 
