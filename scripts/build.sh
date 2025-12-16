@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e # Stop execution if any step fails
 
 if [ "$#" -lt 2 ]; then
     echo "Usage: $0 <nuke-version> <windows/linux> [optional: --podman]"
@@ -19,7 +20,8 @@ DOCKERFILE_DIR=${MAIN_DIR}/dockerfiles/${NUKEVERSION}/${OPERATING_SYSTEM}
 if $USE_PODMAN; then
     dnf install -y curl bc
 else
-    apk add curl bc
+    # FIX: Install gcompat so the Nuke installer (glibc) works on Alpine
+    apk add --no-cache curl bc gcompat libc6-compat
 fi
 
 if [ "$OPERATING_SYSTEM" == "windows" ]; then
@@ -37,7 +39,6 @@ if [ "$OPERATING_SYSTEM" == "windows" ]; then
     fi
 
     wineboot --init
-
     cp ${MAIN_DIR}/dependencies/windows/toolchain.cmake ${DOCKERFILE_DIR}
 fi
 
@@ -54,6 +55,8 @@ echo "Creating image for Nuke version: ${NUKEVERSION}:${OPERATING_SYSTEM}"
 SOURCES_DIR="_nuke_sources"
 
 mkdir -p ${SOURCES_DIR}
+
+# This script execution was failing before due to line endings
 ${MAIN_DIR}/scripts/get_nuke_${OPERATING_SYSTEM}.sh Dockerfile ${SOURCES_DIR}
 
 if [ -d "cmake" ]; then
@@ -68,34 +71,19 @@ fi
 
 if $USE_PODMAN; then
     podman build \
-        -t nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM} \
+        -t nukedockerbuild:${NUKEVERSION}-${OPERATING_SYSTEM} \
         --build-arg NUKE_SOURCE_FILES=${SOURCES_DIR} \
         .
 
-    podman save nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM} | gzip > /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
+    podman save nukedockerbuild:${NUKEVERSION}-${OPERATING_SYSTEM} | gzip > /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
 else
-    # Explicit pull
-    if [ "$OPERATING_SYSTEM" == "linux" ]; then
-        docker pull rockylinux:8
-    else
-        docker pull debian:bookworm
-    fi
-
-    echo "----------------------------------------------------"
-    echo "Building ${OPERATING_SYSTEM} image..."
-    echo "Network: Inheriting from 'nuke_builder_active'"
-    echo "----------------------------------------------------"
-
-    # Run Build
-    # DOCKER_BUILDKIT=0 is required for 'container:' network mode.
-    DOCKER_BUILDKIT=0 docker build \
-        --network container:nuke_builder_active \
-        -t nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM} \
+    docker buildx build \
+        -t nukedockerbuild:${NUKEVERSION}-${OPERATING_SYSTEM} \
         --build-arg NUKE_SOURCE_FILES=${SOURCES_DIR} \
         .
 
-    # Save Output
-    docker save nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM} | gzip > /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
+    # Ensure output filename uses hyphens, not colons
+    docker save nukedockerbuild:${NUKEVERSION}-${OPERATING_SYSTEM} | gzip > /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
+    
     chmod 777 /build/nukedockerbuild-${NUKEVERSION}-${OPERATING_SYSTEM}.tar.gz
 fi
-

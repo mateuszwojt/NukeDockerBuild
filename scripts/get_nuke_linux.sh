@@ -10,8 +10,8 @@ fi
 dockerfile_path="$1"
 target_folder="$2"
 
-url=$(grep "LABEL 'com.nukedockerbuild.nuke_source'" "$dockerfile_path" | awk -F"=" '{print $2}' | tr -d "'")
-version=$(grep "LABEL 'com.nukedockerbuild.nuke_version'" "$dockerfile_path" | awk -F"=" '{print $2}' | tr -d "'")
+url=$(grep "LABEL 'com.nukedockerbuild.nuke_source'" "$dockerfile_path" | awk -F"=" '{print $2}' | tr -d "'" | tr -d '\r')
+version=$(grep "LABEL 'com.nukedockerbuild.nuke_version'" "$dockerfile_path" | awk -F"=" '{print $2}' | tr -d "'" | tr -d '\r')
 
 if [ -z "$url" ]; then
     echo "Error: Label not found in the Dockerfile."
