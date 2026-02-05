@@ -18,6 +18,12 @@ RUN yum install mesa-libGLU-devel -y \
   && yum clean all \
   && rm -rf /var/cache/yum
 
+RUN curl -LO https://github.com/Kitware/CMake/releases/download/v3.29.3/cmake-3.29.3-linux-x86_64.sh \
+  && chmod +x cmake-3.29.3-linux-x86_64.sh \
+  && ./cmake-3.29.3-linux-x86_64.sh --prefix=/usr/local --skip-license \
+  && rm cmake-3.29.3-linux-x86_64.sh \
+  && ln -s /usr/local/bin/cmake /usr/local/bin/cmake3
+
 WORKDIR /nuke_build_directory
 
 ENV CMAKE_PREFIX_PATH=/usr/local/nuke_install \
