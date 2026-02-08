@@ -16,6 +16,11 @@ ARG TOOLCHAIN
 COPY $NUKE_SOURCE_FILES /usr/local/nuke_install
 COPY $TOOLCHAIN /nukedockerbuild/
 
+# Create tbb.lib symlink if tbb12.lib exists but tbb.lib doesn't
+RUN if [ -f /usr/local/nuke_install/tbb12.lib ] && [ ! -f /usr/local/nuke_install/tbb.lib ]; then \
+      ln -s /usr/local/nuke_install/tbb12.lib /usr/local/nuke_install/tbb.lib; \
+    fi
+
 RUN apt-get update \
   && apt-get install wine64 python3 msitools ca-certificates git curl ninja-build winbind -y  \
   && apt-get clean -y \
